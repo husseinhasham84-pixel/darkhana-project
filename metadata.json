@@ -1,0 +1,6 @@
+{
+  "name": "Darkhana",
+  "description": "Official Ismaili community platform for Uganda featuring Darkhana Jamatkhana updates, verified member access, administration for Mr. Asif and Zohora Jassani, eatables food market, classifieds, job advertisements with moderation approval, multilingual support, and full offline caching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
