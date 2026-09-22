@@ -29,8 +29,17 @@ import {
   ChevronDown,
   Download,
   Building,
-  HeartHandshake
+  HeartHandshake,
+  LogOut,
+  ShieldCheck,
+  KeyRound,
+  Printer
 } from 'lucide-react';
+import { CouncilPitchModal } from './components/CouncilPitchModal';
+import { LoginModal } from './components/LoginModal';
+import { DigitalCardModal } from './components/DigitalCardModal';
+import { ToastContainer, ToastMessage } from './components/Toast';
+
 
 // --- Ismaili Jamati Colors ---
 // Primary Green: #006A4E
@@ -48,7 +57,12 @@ export interface Member {
   phone: string;
   role: UserRole;
   cardNo: string;
+  pin?: string;
+  email?: string;
+  joinedDate?: string;
+  status?: 'ACTIVE' | 'PENDING' | 'SUSPENDED';
 }
+
 
 export interface EatableItem {
   id: string;
@@ -337,7 +351,17 @@ function checkContentSafety(text: string): { isSafe: boolean; reason?: string } 
 
 export default function App() {
   // Session States
-  const [currentMember, setCurrentMember] = useState<Member>(DEFAULT_MEMBERS[0]); // Default Mr. Asif
+  const [currentMember, setCurrentMember] = useState<Member>(() => {
+    const saved = localStorage.getItem('darkhana_current_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return DEFAULT_MEMBERS[0]; // Default Mr. Asif
+  });
   const [members, setMembers] = useState<Member[]>(() => {
     const saved = localStorage.getItem('darkhana_members');
     return saved ? JSON.parse(saved) : DEFAULT_MEMBERS;
@@ -347,6 +371,20 @@ export default function App() {
   const [lang, setLang] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<'notices' | 'eatables' | 'ads' | 'jobs' | 'chat' | 'calendar' | 'admin'>('notices');
   const [autoApprove, setAutoApprove] = useState(false);
+
+  // Pitch, Auth, and Card Modals
+  const [showCouncilPitchModal, setShowCouncilPitchModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showDigitalCardModal, setShowDigitalCardModal] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = (title: string, description?: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = 'toast_' + Date.now() + Math.random().toString(36).substring(2, 6);
+    setToasts(prev => [...prev, { id, title, description, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
 
   // Content States
   const [notices, setNotices] = useState<Notice[]>([
@@ -618,7 +656,15 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatSafetyWarning, setChatSafetyWarning] = useState<string | null>(null);
 
-  // Save to LocalStorage for offline persistence
+  // Save to LocalStorage for offline persistence & real app durability
+  useEffect(() => {
+    localStorage.setItem('darkhana_current_user', JSON.stringify(currentMember));
+  }, [currentMember]);
+
+  useEffect(() => {
+    localStorage.setItem('darkhana_members', JSON.stringify(members));
+  }, [members]);
+
   useEffect(() => {
     localStorage.setItem('darkhana_eatables', JSON.stringify(eatables));
   }, [eatables]);
@@ -626,6 +672,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('darkhana_notices', JSON.stringify(notices));
   }, [notices]);
+
+  useEffect(() => {
+    localStorage.setItem('darkhana_classifieds', JSON.stringify(classifieds));
+  }, [classifieds]);
+
+  useEffect(() => {
+    localStorage.setItem('darkhana_jobs', JSON.stringify(jobs));
+  }, [jobs]);
 
   const t = translations[lang] || translations.en;
 
@@ -736,27 +790,39 @@ export default function App() {
                 <span className="uppercase">{lang}</span>
               </button>
 
-              {/* Active Profile Chip */}
+              {/* Jamati Digital ID Card Trigger */}
               <button
-                onClick={() => setShowRoleSwitchModal(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#006A4E] text-white hover:bg-[#00553E] transition-colors text-xs font-medium shadow-xs"
+                onClick={() => setShowDigitalCardModal(true)}
+                className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 transition-colors shadow-2xs cursor-pointer"
+                title="View your verified Jamati Digital ID Card"
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="max-w-[100px] truncate">{currentMember.fullName}</span>
-                <ChevronDown className="w-3 h-3 text-emerald-200" />
+                <ShieldCheck className="w-3.5 h-3.5 text-[#006A4E]" />
+                <span>Jamati ID</span>
               </button>
 
-              {/* Direct APK Download button for Android */}
-              <a
-                href="/.build-outputs/app-debug.apk"
-                download="Darkhana-Uganda-Jamat.apk"
-                className="hidden lg:flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#8B1E2D] text-white hover:bg-[#721724] transition-colors shadow-xs"
-                title="Download compiled Android APK"
+              {/* Council Pitch Presentation Modal Trigger */}
+              <button
+                onClick={() => setShowCouncilPitchModal(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#8B1E2D] text-white hover:bg-[#721724] transition-colors shadow-xs cursor-pointer"
+                title="Council Proposal Presentation & Executive Briefing"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download APK</span>
-              </a>
+                <Building className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span className="hidden md:inline">Council Pitch Brief</span>
+                <span className="md:hidden">Pitch</span>
+              </button>
+
+              {/* Active Profile / Council Login & Switcher */}
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#006A4E] text-white hover:bg-[#00553E] transition-colors text-xs font-medium shadow-xs cursor-pointer"
+                title="Click to Switch Account, Sign In, or View Credentials"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="max-w-[110px] truncate">{currentMember.fullName}</span>
+                <ChevronDown className="w-3 h-3 text-emerald-200" />
+              </button>
             </div>
+
 
           </div>
         </div>
@@ -1014,19 +1080,32 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="px-5 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-stone-800">{item.sellerName}</p>
-                      <p className="text-[10px] text-stone-500">{item.jamatkhana}</p>
+                  <div className="px-5 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-2">
+                    <div className="truncate">
+                      <p className="text-xs font-bold text-stone-800 truncate">{item.sellerName}</p>
+                      <p className="text-[10px] text-stone-500 truncate">{item.jamatkhana}</p>
                     </div>
-                    <a
-                      href={`tel:${item.sellerPhone}`}
-                      className="flex items-center space-x-1 bg-[#006A4E] text-white hover:bg-[#00553E] px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{t.call_seller}</span>
-                    </a>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <a
+                        href={`https://wa.me/${item.sellerPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Ya Ali Madad ${item.sellerName}. I would like to order ${item.title} (UGX ${item.priceUgx.toLocaleString()}) via Darkhana Community Platform.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center space-x-1 bg-emerald-700 text-white hover:bg-emerald-800 px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
+                        title="Order directly via WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </a>
+                      <a
+                        href={`tel:${item.sellerPhone}`}
+                        className="flex items-center space-x-1 bg-[#006A4E] text-white hover:bg-[#00553E] px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call</span>
+                      </a>
+                    </div>
                   </div>
+
 
                   {/* Admin Fast Approval Controls */}
                   {isExecutive && item.status === 'PENDING' && (
@@ -1235,7 +1314,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- TAB 5: COMMUNITY CHAT (WITH AI SAFETY MODERATION) --- */}
+        {/* --- TAB 5: COMMUNITY CHAT (WITH COUNCIL COMMUNITY MODERATION) --- */}
         {activeTab === 'chat' && (
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs flex flex-col h-[650px]">
             
@@ -1560,10 +1639,56 @@ export default function App() {
               </div>
             </div>
 
+            {/* Executive Data Export & Reporting for Council Meeting */}
+            <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-extrabold text-stone-900 text-sm flex items-center gap-2">
+                  <Building className="w-4 h-4 text-[#006A4E]" />
+                  <span>Uganda Council Administrative Reports</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Export live registries of verified members, verified kitchens, and circulars for presentation to Mr. Asif and Zohora Jassani.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    const csvRows = [
+                      ['Card No', 'Full Name', 'Role', 'Jamatkhana', 'Phone', 'Status'],
+                      ...members.map(m => [m.cardNo, `"${m.fullName}"`, m.role, `"${m.jamatkhana}"`, m.phone, m.status || 'ACTIVE'])
+                    ];
+                    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', encodedUri);
+                    link.setAttribute('download', `Darkhana_Members_Registry_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    addToast('Registry Exported', 'Downloaded Uganda Jamat members CSV report.', 'success');
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-800 flex items-center gap-1.5 transition-colors cursor-pointer border border-stone-200"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#006A4E]" />
+                  Export Member CSV
+                </button>
+
+                <button
+                  onClick={() => setShowCouncilPitchModal(true)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#8B1E2D] hover:bg-[#6e1823] text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                >
+                  <Building className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  Open Council Deck
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
 
       </main>
+
 
       {/* --- MODAL: ROLE / PROFILE SWITCHER (FOR INSTANT DEMO & VERIFICATION) --- */}
       {showRoleSwitchModal && (
@@ -1687,10 +1812,10 @@ export default function App() {
                 const notice = (form.elements.namedItem('notice') as HTMLInputElement).value;
                 const isVeg = (form.elements.namedItem('isVeg') as HTMLInputElement).checked;
 
-                // AI Safety check
+                // Jamati community standards check
                 const check = checkContentSafety(title + ' ' + desc);
                 if (!check.isSafe) {
-                  alert(check.reason);
+                  addToast('Submission Rejected', check.reason || 'Item violates community guidelines.', 'error');
                   return;
                 }
 
@@ -1711,8 +1836,13 @@ export default function App() {
 
                 setEatables(prev => [newItem, ...prev]);
                 setShowPostEatableModal(false);
-                alert(autoApprove || isExecutive ? 'Item posted live to Jamat!' : 'Submitted for review by Mr. Asif and Zohora Jassani.');
+                addToast(
+                  autoApprove || isExecutive ? 'Menu Item Published Live' : 'Submitted for Approval',
+                  autoApprove || isExecutive ? 'Your food item is now available for ordering across Uganda Jamat.' : 'Submitted for review by Mr. Asif and Zohora Jassani.',
+                  'success'
+                );
               }}
+
               className="space-y-4 text-xs"
             >
               <div>
@@ -1813,7 +1943,7 @@ export default function App() {
 
                 const check = checkContentSafety(title + ' ' + bName + ' ' + desc);
                 if (!check.isSafe) {
-                  alert(check.reason);
+                  addToast('Ad Rejected', check.reason || 'Content violates community standards.', 'error');
                   return;
                 }
 
@@ -1832,8 +1962,13 @@ export default function App() {
 
                 setClassifieds(prev => [newAd, ...prev]);
                 setShowPostAdModal(false);
-                alert(autoApprove || isExecutive ? 'Ad published live!' : 'Ad submitted for verification by Mr. Asif and Zohora Jassani.');
+                addToast(
+                  autoApprove || isExecutive ? 'Ad Published Live' : 'Ad Submitted for Verification',
+                  autoApprove || isExecutive ? 'Your classified listing is now visible to the Jamat.' : 'Listing submitted for verification by Mr. Asif and Zohora Jassani.',
+                  'success'
+                );
               }}
+
               className="space-y-4 text-xs"
             >
               <div>
@@ -1926,8 +2061,9 @@ export default function App() {
 
                 setJobs(prev => [newJob, ...prev]);
                 setShowPostJobModal(false);
-                alert('Job opportunity published live by leadership!');
+                addToast('Career Opportunity Live', 'Job posting is now published to the Uganda Jamat.', 'success');
               }}
+
               className="space-y-4 text-xs"
             >
               <div>
@@ -2020,8 +2156,9 @@ export default function App() {
 
                 setNotices(prev => [newNotice, ...prev]);
                 setShowPostNoticeModal(false);
-                alert('Notice published to all Uganda Jamat members!');
+                addToast('Official Circular Published', 'Announcement broadcasted to all Uganda Jamatkhanas.', 'success');
               }}
+
               className="space-y-4 text-xs"
             >
               <div>
@@ -2091,10 +2228,10 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  alert(`Application successfully submitted to ${applyingJob.contactEmail}!`);
+                  addToast('Application Transmitted', `Application successfully submitted to ${applyingJob.contactEmail}.`, 'success');
                   setApplyingJob(null);
                 }}
-                className="w-full bg-[#006A4E] hover:bg-[#00553E] text-white py-3 rounded-xl font-bold text-xs shadow-xs transition-colors"
+                className="w-full bg-[#006A4E] hover:bg-[#00553E] text-white py-3 rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer"
               >
                 Send Application
               </button>
@@ -2103,6 +2240,42 @@ export default function App() {
         </div>
       )}
 
+      {/* --- MODAL: COUNCIL PITCH PRESENTATION & BRIEF --- */}
+      <CouncilPitchModal
+        isOpen={showCouncilPitchModal}
+        onClose={() => setShowCouncilPitchModal(false)}
+      />
+
+
+      {/* --- MODAL: COUNCIL & JAMAT AUTHENTICATION --- */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        members={members}
+        onLogin={m => {
+          setCurrentMember(m);
+          addToast('Signed In Successfully', `Welcome, ${m.fullName}! Authenticated as ${m.role.replace('_', ' ')}.`, 'success');
+        }}
+        onRegister={newMember => {
+          setMembers(prev => [newMember, ...prev]);
+          setCurrentMember(newMember);
+          addToast('Jamati Registration Complete', `Your card number is ${newMember.cardNo}. Welcome!`, 'success');
+        }}
+      />
+
+      {/* --- MODAL: JAMATI DIGITAL ID CARD --- */}
+      <DigitalCardModal
+        isOpen={showDigitalCardModal}
+        onClose={() => setShowDigitalCardModal(false)}
+        member={currentMember}
+      />
+
+      {/* --- SYSTEM TOAST NOTIFICATIONS --- */}
+      <ToastContainer
+        toasts={toasts}
+        onDismiss={id => setToasts(prev => prev.filter(t => t.id !== id))}
+      />
+
       {/* Footer */}
       <footer className="bg-white border-t border-stone-200 py-6 text-center text-xs text-stone-500">
         <div className="max-w-7xl mx-auto px-4 space-y-1">
@@ -2110,6 +2283,7 @@ export default function App() {
           <p>Under the Executive Management of Mr. Asif & Zohora Jassani • Full Offline Support Active</p>
         </div>
       </footer>
+
 
     </div>
   );
